@@ -10,22 +10,50 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Monorepo root (parent of backend/) — single .env at project root
+ROOT_DIR = BASE_DIR.parent
+
+load_dotenv(ROOT_DIR / '.env')
+
+
+def _env_bool(key: str, default: bool = False) -> bool:
+    val = os.environ.get(key)
+    if val is None:
+        return default
+    return val.lower() in ('1', 'true', 'yes', 'on')
+
+
+def _env_list(key: str, default: list[str] | None = None) -> list[str]:
+    val = os.environ.get(key)
+    if val is None:
+        return list(default) if default is not None else []
+    val = val.strip()
+    if not val:
+        return []
+    return [x.strip() for x in val.split(',') if x.strip()]
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-bqnm4lb^_yx&uj)ludlb*9j!k61-_sb3bq2u#17z#fshgeq()s'
+# Copy .env.example at repo root to .env and set SECRET_KEY.
+SECRET_KEY = os.environ.get(
+    'SECRET_KEY',
+    'django-insecure-bqnm4lb^_yx&uj)ludlb*9j!k61-_sb3bq2u#17z#fshgeq()s',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = _env_bool('DEBUG', True)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = _env_list('ALLOWED_HOSTS', ['localhost', '127.0.0.1'])
 
 
 # Application definition
@@ -130,8 +158,9 @@ REST_FRAMEWORK = {
     ],
 }
 
-# CORS (Vite dev server)
-CORS_ALLOWED_ORIGINS = [
-    'http://127.0.0.1:5173',
-    'http://localhost:5173',
-]
+# CORS (Vite dev server; set CORS_ALLOWED_ORIGINS in .env to override)
+_default_cors = ['http://127.0.0.1:5173', 'http://localhost:5173']
+if 'CORS_ALLOWED_ORIGINS' not in os.environ:
+    CORS_ALLOWED_ORIGINS = _default_cors
+else:
+    CORS_ALLOWED_ORIGINS = _env_list('CORS_ALLOWED_ORIGINS', [])

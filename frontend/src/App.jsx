@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 
+function healthUrl() {
+  const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  return base ? `${base}/api/health/` : '/api/health/'
+}
+
 function App() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/health/')
+    fetch(healthUrl())
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()

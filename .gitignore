@@ -1,3 +1,7 @@
+# Environment (secrets; single .env at repo root)
+.env
+.env*.local
+
 # Python
 backend/.venv/
 backend/__pycache__/

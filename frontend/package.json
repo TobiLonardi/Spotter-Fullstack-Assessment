@@ -10,8 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "leaflet": "^1.9.4",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "react-leaflet": "^5.0.0",
+    "spotter-fullstack-assessment": "file:.."
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

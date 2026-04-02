@@ -1,0 +1,48 @@
+.app {
+  padding: 2rem 1.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.subtitle {
+  margin-top: -1.5rem;
+  opacity: 0.85;
+}
+
+.card {
+  width: 100%;
+  max-width: 32rem;
+  text-align: left;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  background: var(--social-bg);
+}
+
+.card h2 {
+  margin-bottom: 0.75rem;
+}
+
+.json {
+  margin: 0;
+  padding: 1rem;
+  background: var(--code-bg);
+  border-radius: 8px;
+  overflow: auto;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.err {
+  color: #dc2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  .err {
+    color: #f87171;
+  }
+}

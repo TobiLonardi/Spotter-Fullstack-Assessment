@@ -100,9 +100,9 @@ export default function App() {
   return (
     <main className="app">
       <header className="hero">
-        <h1>Spotter — trip planner</h1>
+        <h1>Spotter — Trip Planner</h1>
         <p className="subtitle">
-          Route, stops, and ELD-style daily grids (planning aid only).
+          Route, stops, and ELD-style daily grids.
         </p>
       </header>
 

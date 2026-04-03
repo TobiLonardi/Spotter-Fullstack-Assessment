@@ -10,6 +10,8 @@
 .hero {
   width: 100%;
   max-width: 56rem;
+  margin: 0;
+  padding: 0;
   text-align: center;
 }
 
@@ -18,7 +20,8 @@
 }
 
 .subtitle {
-  margin: 0;
+  margin-top: 20px;
+  padding: 10px;
   opacity: 0.85;
 }
 

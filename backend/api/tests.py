@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.test import SimpleTestCase
 from zoneinfo import ZoneInfo
@@ -11,6 +11,7 @@ from api.services.hos import (
     MIN_34H_RESTART,
     MIN_7H_SB,
     _local_minutes_from_midnight,
+    _on_duty_minutes_in_window,
     build_work_items,
     merge_adjacent_events,
     plan_trip_hos,
@@ -33,6 +34,24 @@ class GeocodeResolveTests(SimpleTestCase):
     def test_resolve_rejects_short_sequence(self):
         with self.assertRaises(ValueError):
             resolve_location([40.7])
+
+
+class RollingCycleWindowTests(SimpleTestCase):
+    def test_on_duty_outside_eight_day_window_not_counted(self):
+        tz = ZoneInfo("UTC")
+        window_end = datetime(2026, 1, 10, 12, 0, tzinfo=tz)
+        old_start = window_end - timedelta(days=9)
+        intervals = [(old_start, old_start + timedelta(hours=2))]
+        m = _on_duty_minutes_in_window(intervals, window_end)
+        self.assertAlmostEqual(m, 0.0, delta=0.02)
+
+    def test_on_duty_inside_window_fully_counted(self):
+        tz = ZoneInfo("UTC")
+        window_end = datetime(2026, 1, 10, 12, 0, tzinfo=tz)
+        seg_start = window_end - timedelta(days=2)
+        intervals = [(seg_start, seg_start + timedelta(hours=5))]
+        m = _on_duty_minutes_in_window(intervals, window_end)
+        self.assertAlmostEqual(m, 5 * 60.0, delta=0.02)
 
 
 class HosModelMetadataTests(SimpleTestCase):

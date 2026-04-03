@@ -3,7 +3,8 @@ Hours-of-service simulation (planning aid only — not certified for compliance)
 
 Property-carrying: 11h drive / 10h off, 14h *elapsed* window from duty start (short off-duty
 still counts), 30min break after 8h driving,
-70h/8d with simplified 34h restart when the cycle is exhausted.
+70h/8d: on-duty (D+ON) minutes counted in a rolling 8-day window ending at current time;
+34+ consecutive hours off clears the cycle (planning simplification vs full FMCSA restart nuance).
 
 Display convention (FMCSA-aligned, still a planning model):
 - Sleeper berth (SB): rest segments of **≥7 consecutive hours** — matches the minimum **consecutive**
@@ -35,8 +36,67 @@ FUEL_ON_MIN = 30
 PICKUP_ON_MIN = 60
 DROPOFF_ON_MIN = 60
 GRID_MIN = 15
+CYCLE_WINDOW = timedelta(days=8)
+CYCLE_MAX_ON_DUTY_MIN = 70.0 * 60.0
 
 Status = Literal["OFF", "SB", "ON", "D"]
+
+
+def _interval_overlap_minutes(
+    seg_start: datetime, seg_end: datetime, ws: datetime, we: datetime
+) -> float:
+    lo = max(seg_start, ws)
+    hi = min(seg_end, we)
+    if hi <= lo:
+        return 0.0
+    return (hi - lo).total_seconds() / 60.0
+
+
+def _on_duty_minutes_in_window(
+    intervals: list[tuple[datetime, datetime]],
+    window_end: datetime,
+) -> float:
+    """Sum minutes of D/ON intervals overlapping [window_end - 8d, window_end]."""
+    ws = window_end - CYCLE_WINDOW
+    total = 0.0
+    for a, b in intervals:
+        total += _interval_overlap_minutes(a, b, ws, window_end)
+    return total
+
+
+def _total_on_duty_after_block(
+    intervals: list[tuple[datetime, datetime]],
+    block_start: datetime,
+    block_end: datetime,
+) -> float:
+    """Rolling-window total at block_end if [block_start, block_end) is added (on-duty)."""
+    we = block_end
+    ws = we - CYCLE_WINDOW
+    total = _on_duty_minutes_in_window(intervals, we)
+    total += _interval_overlap_minutes(block_start, block_end, ws, we)
+    return total
+
+
+def _max_feasible_on_duty_chunk(
+    intervals: list[tuple[datetime, datetime]],
+    t: datetime,
+    hi_minutes: int,
+) -> int:
+    """Largest integer minutes in [0, hi_minutes] for a new on-duty block starting at t."""
+    if hi_minutes <= 0:
+        return 0
+    lo_b, hi_b = 0, hi_minutes
+    best = 0
+    while lo_b <= hi_b:
+        mid = (lo_b + hi_b) // 2
+        te = t + timedelta(minutes=mid)
+        used = _total_on_duty_after_block(intervals, t, te)
+        if used <= CYCLE_MAX_ON_DUTY_MIN + 1e-6:
+            best = mid
+            lo_b = mid + 1
+        else:
+            hi_b = mid - 1
+    return best
 
 
 def next_fuel_threshold_mile(odometer: float) -> float:
@@ -80,8 +140,6 @@ class HosState:
     # off-duty/SB; matches FMCSA 14-hour *consecutive* window (breaks do not pause the clock).
     on_duty_since_reset: int = 0
     driving_since_30break: int = 0
-    cycle_used_hours: float = 0.0
-    cycle_cap_hours: float = 70.0
 
     def apply_10h_reset(self) -> None:
         self.consecutive_off = 0
@@ -100,10 +158,6 @@ def _max_drive_minutes(state: HosState) -> int:
     b = MIN_14_WINDOW - state.on_duty_since_reset
     c = MIN_8_DRIVE - state.driving_since_30break
     return max(0, min(a, b, c))
-
-
-def _cycle_minutes_remaining(state: HosState) -> float:
-    return state.cycle_cap_hours * 60.0 - state.cycle_used_hours * 60.0
 
 
 def _append_event(
@@ -143,15 +197,20 @@ def simulate_hos(
 ) -> list[dict[str, Any]]:
     """
     work_items: list of ("drive", minutes, label) or ("on", minutes, label).
-    Driving and ON (not driving) consume the 70h cycle.
+    Driving and ON (not driving) count toward the 70h / 8-day rolling on-duty window.
     """
-    state = HosState(
-        cycle_used_hours=max(0.0, float(initial_cycle_used_hours)),
-        cycle_cap_hours=70.0,
-    )
+    state = HosState()
     events: list[dict[str, Any]] = []
     t = start
     off_streak = 0
+    cycle_intervals: list[tuple[datetime, datetime]] = []
+    ih = max(0.0, float(initial_cycle_used_hours))
+    if ih > 0:
+        ghost_start = start - timedelta(hours=ih)
+        cycle_intervals.append((ghost_start, start))
+
+    def clear_cycle_after_restart() -> None:
+        cycle_intervals.clear()
 
     def emit_off(mins: int, label: str, *, sb_if_long: bool = True) -> None:
         nonlocal t, off_streak
@@ -193,24 +252,18 @@ def simulate_hos(
         start_on_or_drive()
         remaining = mins
         while remaining > 0:
-            rem = _cycle_minutes_remaining(state)
-            if rem <= 0:
+            cap = _max_feasible_on_duty_chunk(cycle_intervals, t, remaining)
+            if cap <= 0:
                 emit_off(MIN_34H_RESTART, "34-hour cycle restart", sb_if_long=False)
-                state.cycle_used_hours = 0.0
+                clear_cycle_after_restart()
                 _finish_off_period(off_streak, state)
                 off_streak = 0
                 continue
-            chunk = int(min(remaining, rem))
-            if chunk <= 0:
-                emit_off(MIN_34H_RESTART, "34-hour cycle restart", sb_if_long=False)
-                state.cycle_used_hours = 0.0
-                _finish_off_period(off_streak, state)
-                off_streak = 0
-                continue
+            chunk = cap
             end = t + timedelta(minutes=chunk)
             _append_event(events, t, end, "ON", label)
             state.on_duty_since_reset += chunk
-            state.cycle_used_hours += chunk / 60.0
+            cycle_intervals.append((t, end))
             t = end
             remaining -= chunk
 
@@ -219,14 +272,6 @@ def simulate_hos(
         start_on_or_drive()
         remaining = mins_total
         while remaining > 0:
-            rem_c = _cycle_minutes_remaining(state)
-            if rem_c <= 0:
-                emit_off(MIN_34H_RESTART, "34-hour cycle restart", sb_if_long=False)
-                state.cycle_used_hours = 0.0
-                _finish_off_period(off_streak, state)
-                off_streak = 0
-                continue
-
             if state.driving_since_30break >= MIN_8_DRIVE:
                 emit_off(MIN_30_BREAK, "30-minute break")
                 _finish_off_period(off_streak, state)
@@ -246,10 +291,11 @@ def simulate_hos(
                 off_streak = 0
                 continue
 
-            step = int(min(md, remaining, rem_c))
+            cap = _max_feasible_on_duty_chunk(cycle_intervals, t, min(md, remaining))
+            step = int(min(md, remaining, cap))
             if step <= 0:
                 emit_off(MIN_34H_RESTART, "34-hour cycle restart", sb_if_long=False)
-                state.cycle_used_hours = 0.0
+                clear_cycle_after_restart()
                 _finish_off_period(off_streak, state)
                 off_streak = 0
                 continue
@@ -259,7 +305,7 @@ def simulate_hos(
             state.driving_since_reset += step
             state.on_duty_since_reset += step
             state.driving_since_30break += step
-            state.cycle_used_hours += step / 60.0
+            cycle_intervals.append((t, end))
             t = end
             remaining -= step
 
@@ -476,7 +522,10 @@ def trip_plan_hos_model() -> dict[str, Any]:
             "14-hour consecutive on-duty window from duty start (short OFF/SB counts; break does not pause)",
             "30-minute break from driving after 8 cumulative driving hours",
             "10+ consecutive hours off duty / sleeper resets 11-hour and 14-hour clocks",
-            "70 hours on duty max in 8 days (rolling) with mandatory 34-hour off when cycle exhausted",
+            (
+                "70 hours on duty (driving + on-duty not driving) in any rolling 8-day window "
+                "ending at the current time; 34+ consecutive hours off clears the cycle in this planner"
+            ),
             "Fuel stops every ~1,000 driven miles (planning assumption)",
         ],
         "grid_display_conventions": [

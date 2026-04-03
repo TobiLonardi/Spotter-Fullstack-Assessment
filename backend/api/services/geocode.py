@@ -35,11 +35,10 @@ def _search_cached(query: str) -> tuple[float, float] | None:
     return float(item["lat"]), float(item["lon"])
 
 
-def resolve_location(
-    value: str | dict[str, Any],
-) -> tuple[float, float]:
+def resolve_location(value: Any) -> tuple[float, float]:
     """
-    Return (lat, lon) for a free-text query or {"lat": x, "lon": y} / {"lat", "lng"}.
+    Return (lat, lon) for a free-text query, {"lat": x, "lon": y} / {"lat", "lng"},
+    or a two-element [lat, lon] array.
     """
     if isinstance(value, dict):
         lat = value.get("lat")
@@ -49,10 +48,18 @@ def resolve_location(
         if lat is None or lon is None:
             raise ValueError("Object location requires lat and lon (or lng).")
         return float(lat), float(lon)
-    q = (value or "").strip()
-    if not q:
-        raise ValueError("Empty address.")
-    coords = _search_cached(q)
-    if coords is None:
-        raise ValueError(f"Could not geocode: {q!r}")
-    return coords
+    if isinstance(value, (list, tuple)):
+        if len(value) < 2:
+            raise ValueError("Coordinate array must have at least two numbers [lat, lon].")
+        return float(value[0]), float(value[1])
+    if isinstance(value, str):
+        q = value.strip()
+        if not q:
+            raise ValueError("Empty address.")
+        coords = _search_cached(q)
+        if coords is None:
+            raise ValueError(f"Could not geocode: {q!r}")
+        return coords
+    raise ValueError(
+        "Location must be a non-empty string, an object with lat/lon (or lng), or [lat, lon]."
+    )

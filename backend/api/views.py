@@ -51,6 +51,11 @@ class TripPlanView(APIView):
             do = resolve_location(data["dropoff_location"])
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {"detail": f"Geocoding failed: {e!s}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
 
         lonlat = [
             [cur[1], cur[0]],

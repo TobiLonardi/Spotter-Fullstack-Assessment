@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
@@ -129,7 +129,8 @@ def _finish_off_period(off_streak: int, state: HosState) -> None:
     """Apply HOS resets after a contiguous off-duty block ends."""
     if off_streak <= 0:
         return
-    if off_streak >= MIN_10H or off_streak >= MIN_34H_RESTART:
+    # ≥10h consecutive off resets the 11/14h clocks; longer rests (e.g. 34h cycle restart) satisfy this too.
+    if off_streak >= MIN_10H:
         state.apply_10h_reset()
     elif off_streak >= MIN_30_BREAK:
         state.apply_30break_reset()
@@ -345,9 +346,14 @@ def snap_minute_grid(m: float) -> int:
 
 
 def _local_minutes_from_midnight(dt: datetime, tz: ZoneInfo) -> float:
+    """Wall-clock minutes since local midnight (DST-safe; not raw timedelta across offset changes)."""
     loc = dt.astimezone(tz)
-    mid = loc.replace(hour=0, minute=0, second=0, microsecond=0)
-    return (loc - mid).total_seconds() / 60.0
+    return (
+        loc.hour * 60
+        + loc.minute
+        + loc.second / 60.0
+        + loc.microsecond / 60_000_000.0
+    )
 
 
 def slice_eld_days(
@@ -370,9 +376,10 @@ def slice_eld_days(
         while cur < end_t:
             loc = cur.astimezone(tz)
             day_key = loc.date().isoformat()
-            next_mid = loc.replace(
-                hour=0, minute=0, second=0, microsecond=0
-            ) + timedelta(days=1)
+            # Next calendar midnight in this zone (avoids timedelta across DST offset changes).
+            next_mid = datetime.combine(
+                loc.date() + timedelta(days=1), time.min, tzinfo=tz
+            )
             chunk_end = min(end_t, next_mid)
 
             start_min = _local_minutes_from_midnight(cur, tz)

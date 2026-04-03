@@ -3,12 +3,14 @@ from datetime import datetime
 from django.test import SimpleTestCase
 from zoneinfo import ZoneInfo
 
+from api.services.geocode import resolve_location
 from api.services.hos import (
     MIN_10H_OFF_PART,
     MIN_11_DRIVE,
     MIN_30_BREAK,
     MIN_34H_RESTART,
     MIN_7H_SB,
+    _local_minutes_from_midnight,
     build_work_items,
     merge_adjacent_events,
     plan_trip_hos,
@@ -16,6 +18,20 @@ from api.services.hos import (
     slice_eld_days,
     split_leg_by_fuel,
 )
+
+
+class GeocodeResolveTests(SimpleTestCase):
+    def test_resolve_accepts_lat_lon_list(self):
+        self.assertEqual(resolve_location([40.7, -74.0]), (40.7, -74.0))
+
+    def test_resolve_rejects_scalar_with_valueerror(self):
+        with self.assertRaises(ValueError) as ctx:
+            resolve_location(12)
+        self.assertIn("string", str(ctx.exception).lower())
+
+    def test_resolve_rejects_short_sequence(self):
+        with self.assertRaises(ValueError):
+            resolve_location([40.7])
 
 
 class FuelSplitTests(SimpleTestCase):
@@ -184,6 +200,15 @@ class HosSimulationTests(SimpleTestCase):
         day1 = next(d for d in days if d["date"] == "2026-01-01")
         last = max(day1["segments"], key=lambda s: s["end_minute"])
         self.assertEqual(last["end_minute"], 24 * 60)
+
+    def test_local_minutes_from_midnight_uses_wall_clock_on_dst_spring_forward(self):
+        """After spring forward, local midnight and afternoon differ in UTC offset; use wall time."""
+        ny = ZoneInfo("America/New_York")
+        utc = ZoneInfo("UTC")
+        # 2026-03-08: US DST begins ~02:00 local. 20:00 UTC = 16:00 Eastern (4 PM) that day.
+        dt = datetime(2026, 3, 8, 20, 0, 0, tzinfo=utc)
+        m = _local_minutes_from_midnight(dt, ny)
+        self.assertAlmostEqual(m, 16 * 60, delta=0.01)
 
     def test_long_drive_to_pickup_is_split_for_fuel(self):
         pu_chunks = split_leg_by_fuel(0.0, 2500.0, 2500.0)

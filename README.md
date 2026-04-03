@@ -9,25 +9,62 @@ Django + React (Vite) app for **truck trip planning**: geocoded locations, **dri
 - **Python 3** with `pip` (virtual environment recommended)
 - **Node.js** (LTS) and **npm**
 
-## Configuration
+## Environment variables
 
-1. At the **repository root**, copy the environment template:
+Create and edit `.env` at the **repository root** as described in **Run locally** (below). See `.env.example` for all keys. Routing uses OpenRouteService; set **`ORS_API_KEY`** (and optionally **`ORS_BASE_URL`**) or trip planning will fail when the API runs.
 
-   - Windows: `copy .env.example .env`
+Django loads `.env` from the repo root (`ROOT_DIR` in `backend/config/settings.py`). Vite reads `VITE_*` variables from the same root (`envDir` in `frontend/vite.config.js`). Keep `.env` **out of version control** (gitignored).
+
+## Run locally (step by step)
+
+1. **Install prerequisites**  
+   Python 3 with `pip`, and Node.js (LTS) with `npm`, available on your `PATH`.
+
+2. **Create `.env` at the repository root** (same folder as this `README`):
+
+   - Windows (PowerShell or CMD, from repo root): `copy .env.example .env`
    - macOS / Linux: `cp .env.example .env`
 
-2. Edit `.env` and set **`ORS_API_KEY`**. Routing calls OpenRouteService (or a compatible URL via **`ORS_BASE_URL`**). Without a key, trip planning will fail when the API is invoked.
+3. **Edit `.env`** and set **`ORS_API_KEY`** (see `.env.example` and [OpenRouteService signup](https://openrouteservice.org/dev/#/signup)). Trip routing will fail without a valid key when the API is called. Optional: adjust **`ORS_BASE_URL`**, **`SECRET_KEY`**, **`CORS_ALLOWED_ORIGINS`**, etc.
 
-3. Keep `.env` **out of version control** (it should remain gitignored).
+4. **Start the backend** (Terminal 1) — listens on **http://127.0.0.1:8000**:
 
-Django loads this file from the repo root (`ROOT_DIR` in `backend/config/settings.py`). Vite reads `VITE_*` variables from the same root via `frontend/vite.config.js` (`envDir: '..'`) when needed.
+   ```bash
+   cd backend
+   python -m venv .venv
+   ```
 
-## Run locally
+   Activate the virtual environment:
 
-You need **two terminals**: backend (port **8000**) and frontend dev server (port **5173**). In dev, Vite **proxies** `/api` to `http://127.0.0.1:8000`.
+   - Windows (PowerShell): `.\.venv\Scripts\Activate.ps1`
+   - Windows (CMD): `.\.venv\Scripts\activate.bat`
+   - macOS / Linux: `source .venv/bin/activate`
 
-### Backend
+   Then install dependencies, apply migrations, and run the server:
 
-```bash
-cd backend
-python -m venv .venv
+   ```bash
+   pip install -r requirements.txt
+   python manage.py migrate
+   python manage.py runserver 8000
+   ```
+
+5. **Start the frontend** (Terminal 2) — from the **repository root** (parent of `backend/`):
+
+   ```bash
+   npm run install:frontend
+   npm run dev
+   ```
+
+   This starts Vite on **http://localhost:5173**. In development, the dev server **proxies** `/api` to `http://127.0.0.1:8000`, so keep the Django process running.
+
+   Alternative (equivalent): `cd frontend`, then `npm install` and `npm run dev`.
+
+6. **Open the app** in a browser at **http://localhost:5173**.
+
+### Optional root scripts
+
+From the repo root you can also run:
+
+- `npm run build` — production build of the frontend
+- `npm run preview` — preview the production build locally
+- `npm run lint` — ESLint on the frontend

@@ -460,3 +460,28 @@ def plan_trip_hos(
     legs = events_to_legs(merged)
     eld_days = slice_eld_days(merged, timezone)
     return legs, eld_days, merged
+
+
+def trip_plan_hos_model() -> dict[str, Any]:
+    """
+    Static description of what the simulator does vs FMCSA-style property rules.
+    Returned on every /api/trip/plan/ response for transparency (no extra user inputs).
+    """
+    return {
+        "summary": (
+            "Simplified property-carrying HOS planner; not an FMCSA-certified ELD output."
+        ),
+        "implemented_rules": [
+            "11-hour driving limit per duty period after qualifying rest",
+            "14-hour consecutive on-duty window from duty start (short OFF/SB counts; break does not pause)",
+            "30-minute break from driving after 8 cumulative driving hours",
+            "10+ consecutive hours off duty / sleeper resets 11-hour and 14-hour clocks",
+            "70 hours on duty max in 8 days (rolling) with mandatory 34-hour off when cycle exhausted",
+            "Fuel stops every ~1,000 driven miles (planning assumption)",
+        ],
+        "grid_display_conventions": [
+            "10-hour daily reset drawn as 7h sleeper berth + 3h off duty (valid §395.3(a)(1) pattern)",
+            "Rest segments ≥7 consecutive hours shown as sleeper berth; shorter as off duty",
+            "34-hour cycle restart shown entirely as off duty",
+        ],
+    }

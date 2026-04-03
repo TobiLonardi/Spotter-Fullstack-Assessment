@@ -43,6 +43,37 @@ function legTagClassName(leg) {
   return parts.join(' ')
 }
 
+function HosModelDetails({ hosModel }) {
+  if (!hosModel || typeof hosModel !== 'object') return null
+  const { summary, implemented_rules, grid_display_conventions } = hosModel
+  return (
+    <details className="hos-model-details">
+      <summary>HOS model (FMCSA-style scope)</summary>
+      {summary ? <p className="hos-model-summary">{summary}</p> : null}
+      {Array.isArray(implemented_rules) && implemented_rules.length > 0 ? (
+        <>
+          <h3 className="hos-model-sub">Included in simulation</h3>
+          <ul>
+            {implemented_rules.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {Array.isArray(grid_display_conventions) && grid_display_conventions.length > 0 ? (
+        <>
+          <h3 className="hos-model-sub">Daily grid display</h3>
+          <ul>
+            {grid_display_conventions.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </details>
+  )
+}
+
 export default function App() {
   const [currentLocation, setCurrentLocation] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
@@ -169,6 +200,8 @@ export default function App() {
       {plan && (
         <>
           {plan.disclaimer && <p className="disclaimer card">{plan.disclaimer}</p>}
+
+          <HosModelDetails hosModel={plan.hos_model} />
 
           <section className="card route-summary">
             <h2>Route</h2>

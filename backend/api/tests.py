@@ -17,6 +17,7 @@ from api.services.hos import (
     simulate_hos,
     slice_eld_days,
     split_leg_by_fuel,
+    trip_plan_hos_model,
 )
 
 
@@ -32,6 +33,16 @@ class GeocodeResolveTests(SimpleTestCase):
     def test_resolve_rejects_short_sequence(self):
         with self.assertRaises(ValueError):
             resolve_location([40.7])
+
+
+class HosModelMetadataTests(SimpleTestCase):
+    def test_trip_plan_hos_model_has_expected_sections(self):
+        m = trip_plan_hos_model()
+        self.assertIn("summary", m)
+        self.assertIsInstance(m["implemented_rules"], list)
+        self.assertTrue(m["implemented_rules"])
+        self.assertIsInstance(m["grid_display_conventions"], list)
+        self.assertTrue(m["grid_display_conventions"])
 
 
 class FuelSplitTests(SimpleTestCase):

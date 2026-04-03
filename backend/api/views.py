@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from .serializers import TripPlanRequestSerializer
 from .services.geocode import resolve_location
-from .services.hos import plan_trip_hos
+from .services.hos import plan_trip_hos, trip_plan_hos_model
 from .services.routing import get_directions, meters_to_miles
 
 
@@ -116,6 +116,7 @@ class TripPlanView(APIView):
         return Response(
             {
                 "disclaimer": "This output is a planning aid only and is not an FMCSA-certified ELD.",
+                "hos_model": trip_plan_hos_model(),
                 "route": {
                     "type": "LineString",
                     "coordinates_latlng": line_latlng,

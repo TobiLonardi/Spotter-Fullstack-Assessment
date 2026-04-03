@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import './App.css'
+import { computeDrivingMilesByDate } from './eldDrivingMiles.js'
 import EldSheets from './EldSheets.jsx'
 import TripMap from './TripMap.jsx'
 
@@ -29,6 +30,16 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [plan, setPlan] = useState(null)
+
+  const drivingMilesByDate = useMemo(
+    () =>
+      computeDrivingMilesByDate(
+        plan?.legs,
+        plan?.route?.distance_miles,
+        timezone,
+      ),
+    [plan?.legs, plan?.route?.distance_miles, timezone],
+  )
 
   async function submit(e) {
     e.preventDefault()
@@ -173,7 +184,14 @@ export default function App() {
 
           <section className="card eld-wrap">
             <h2>Daily log sheets</h2>
-            <EldSheets eldDays={plan.eld_days || []} />
+            <p className="eld-wrap-hint">
+              Estimated driving miles per day split by time on duty driving (D); proportional to{' '}
+              <strong>{plan.route?.distance_miles}</strong> mi total route.
+            </p>
+            <EldSheets
+              eldDays={plan.eld_days || []}
+              drivingMilesByDate={drivingMilesByDate}
+            />
           </section>
         </>
       )}

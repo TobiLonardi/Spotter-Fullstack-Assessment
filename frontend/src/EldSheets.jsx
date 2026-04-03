@@ -23,7 +23,7 @@ function SegmentBar({ seg }) {
   )
 }
 
-function DayGrid({ day }) {
+function DayGrid({ day, drivingMiles }) {
   const byStatus = { OFF: [], SB: [], D: [], ON: [] }
   for (const seg of day.segments || []) {
     if (byStatus[seg.status]) byStatus[seg.status].push(seg)
@@ -35,7 +35,17 @@ function DayGrid({ day }) {
     <section className="eld-sheet">
       <header className="eld-sheet-head">
         <h3>Daily log — {day.date}</h3>
-        <p className="eld-hint">15-minute grid (planning aid — not a certified ELD).</p>
+        <p className="eld-hint">
+          {drivingMiles != null ? (
+            <>
+              <span className="eld-driving-miles">
+                Driving (est.): <strong>{drivingMiles} mi</strong>
+              </span>
+              {' · '}
+            </>
+          ) : null}
+          15-minute grid (planning aid — not a certified ELD).
+        </p>
       </header>
       <div className="eld-hour-labels">
         {hours.map((h) => (
@@ -58,12 +68,20 @@ function DayGrid({ day }) {
   )
 }
 
-export default function EldSheets({ eldDays }) {
+export default function EldSheets({ eldDays, drivingMilesByDate = {} }) {
   if (!eldDays?.length) return null
   return (
     <div className="eld-sheets">
       {eldDays.map((d) => (
-        <DayGrid key={d.date} day={d} />
+        <DayGrid
+          key={d.date}
+          day={d}
+          drivingMiles={
+            Object.keys(drivingMilesByDate).length === 0
+              ? null
+              : (drivingMilesByDate[d.date] ?? 0)
+          }
+        />
       ))}
     </div>
   )

@@ -93,6 +93,13 @@
   max-width: 56rem;
 }
 
+.eld-wrap-hint {
+  font-size: 0.88rem;
+  opacity: 0.9;
+  margin: 0 0 1rem;
+  max-width: 56rem;
+}
+
 .map-wrap {
   margin-top: 1rem;
   border-radius: 10px;
@@ -250,7 +257,8 @@
   .disclaimer,
   .route-summary .trip-map,
   .map-wrap,
-  .legs-hint {
+  .legs-hint,
+  .eld-wrap-hint {
     display: none !important;
   }
 

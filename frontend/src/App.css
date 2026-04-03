@@ -154,6 +154,15 @@
   background: rgba(100, 100, 100, 0.2);
 }
 
+.leg-tag.leg-rest.leg-sb {
+  background: rgba(91, 75, 138, 0.22);
+  color: var(--text-h);
+}
+
+.leg-tag.leg-rest.leg-off-duty {
+  background: rgba(75, 85, 99, 0.22);
+}
+
 .leg-tag.leg-on_duty {
   background: rgba(180, 120, 40, 0.2);
 }

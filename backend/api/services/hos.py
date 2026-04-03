@@ -3,6 +3,9 @@ Hours-of-service simulation (planning aid only — not certified for compliance)
 
 Property-carrying: 11h drive / 10h off, 14h on-duty window, 30min break after 8h driving,
 70h/8d with simplified 34h restart when the cycle is exhausted.
+
+Rest blocks of 5+ consecutive hours are labeled SB (sleeper berth) instead of OFF for display,
+except the simplified 34-hour cycle restart, which stays OFF. HOS reset logic treats all as off-duty.
 """
 
 from __future__ import annotations
@@ -18,13 +21,14 @@ MIN_11_DRIVE = 660
 MIN_14_WINDOW = 840
 MIN_8_DRIVE = 480
 MIN_30_BREAK = 30
+MIN_5H_SB = 5 * 60  # rest blocks this long or longer are labeled sleeper berth (planning aid)
 MIN_34H_RESTART = 34 * 60
 FUEL_ON_MIN = 30
 PICKUP_ON_MIN = 60
 DROPOFF_ON_MIN = 60
 GRID_MIN = 15
 
-Status = Literal["OFF", "ON", "D"]
+Status = Literal["OFF", "SB", "ON", "D"]
 
 
 def next_fuel_threshold_mile(odometer: float) -> float:
@@ -138,12 +142,14 @@ def simulate_hos(
     t = start
     off_streak = 0
 
-    def emit_off(mins: int, label: str) -> None:
+    def emit_off(mins: int, label: str, *, sb_if_long: bool = True) -> None:
         nonlocal t, off_streak
         if mins <= 0:
             return
         end = t + timedelta(minutes=mins)
-        _append_event(events, t, end, "OFF", label)
+        use_sb = sb_if_long and mins >= MIN_5H_SB
+        rest_status: Status = "SB" if use_sb else "OFF"
+        _append_event(events, t, end, rest_status, label)
         off_streak += mins
         t = end
 
@@ -160,14 +166,14 @@ def simulate_hos(
         while remaining > 0:
             rem = _cycle_minutes_remaining(state)
             if rem <= 0:
-                emit_off(MIN_34H_RESTART, "34-hour cycle restart")
+                emit_off(MIN_34H_RESTART, "34-hour cycle restart", sb_if_long=False)
                 state.cycle_used_hours = 0.0
                 _finish_off_period(off_streak, state)
                 off_streak = 0
                 continue
             chunk = int(min(remaining, rem))
             if chunk <= 0:
-                emit_off(MIN_34H_RESTART, "34-hour cycle restart")
+                emit_off(MIN_34H_RESTART, "34-hour cycle restart", sb_if_long=False)
                 state.cycle_used_hours = 0.0
                 _finish_off_period(off_streak, state)
                 off_streak = 0
@@ -186,7 +192,7 @@ def simulate_hos(
         while remaining > 0:
             rem_c = _cycle_minutes_remaining(state)
             if rem_c <= 0:
-                emit_off(MIN_34H_RESTART, "34-hour cycle restart")
+                emit_off(MIN_34H_RESTART, "34-hour cycle restart", sb_if_long=False)
                 state.cycle_used_hours = 0.0
                 _finish_off_period(off_streak, state)
                 off_streak = 0
@@ -213,7 +219,7 @@ def simulate_hos(
 
             step = int(min(md, remaining, rem_c))
             if step <= 0:
-                emit_off(MIN_34H_RESTART, "34-hour cycle restart")
+                emit_off(MIN_34H_RESTART, "34-hour cycle restart", sb_if_long=False)
                 state.cycle_used_hours = 0.0
                 _finish_off_period(off_streak, state)
                 off_streak = 0
@@ -280,7 +286,11 @@ def events_to_legs(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     legs: list[dict[str, Any]] = []
     for e in events:
         dur = (e["end"] - e["start"]).total_seconds() / 60.0
-        kind = "rest" if e["status"] == "OFF" else ("driving" if e["status"] == "D" else "on_duty")
+        kind = (
+            "rest"
+            if e["status"] in ("OFF", "SB")
+            else ("driving" if e["status"] == "D" else "on_duty")
+        )
         legs.append(
             {
                 "type": kind,

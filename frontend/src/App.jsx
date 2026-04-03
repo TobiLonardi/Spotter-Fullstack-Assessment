@@ -21,6 +21,28 @@ function formatWhen(iso) {
   }
 }
 
+function legStatusLabel(status) {
+  switch (status) {
+    case 'D':
+      return 'Driving'
+    case 'ON':
+      return 'On duty (not driving)'
+    case 'OFF':
+      return 'Off duty'
+    case 'SB':
+      return 'Sleeper berth'
+    default:
+      return status || ''
+  }
+}
+
+function legTagClassName(leg) {
+  const parts = ['leg-tag', `leg-${leg.type}`]
+  if (leg.status === 'SB') parts.push('leg-sb')
+  else if (leg.status === 'OFF') parts.push('leg-off-duty')
+  return parts.join(' ')
+}
+
 export default function App() {
   const [currentLocation, setCurrentLocation] = useState('')
   const [pickupLocation, setPickupLocation] = useState('')
@@ -171,7 +193,7 @@ export default function App() {
             <ol className="legs-list">
               {(plan.legs || []).map((leg, i) => (
                 <li key={i}>
-                  <span className={`leg-tag leg-${leg.type}`}>{leg.status}</span>{' '}
+                  <span className={legTagClassName(leg)}>{legStatusLabel(leg.status)}</span>{' '}
                   <strong>{leg.label}</strong>
                   <div className="leg-meta">
                     {formatWhen(leg.start)} → {formatWhen(leg.end)} ·{' '}

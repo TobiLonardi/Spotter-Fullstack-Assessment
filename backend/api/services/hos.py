@@ -5,8 +5,13 @@ Property-carrying: 11h drive / 10h off, 14h *elapsed* window from duty start (sh
 still counts), 30min break after 8h driving,
 70h/8d with simplified 34h restart when the cycle is exhausted.
 
-Rest blocks of 5+ consecutive hours are labeled SB (sleeper berth) instead of OFF for display,
-except the simplified 34-hour cycle restart, which stays OFF. HOS reset logic treats all as off-duty.
+Display convention (FMCSA-aligned, still a planning model):
+- Sleeper berth (SB): rest segments of **≥7 consecutive hours** — matches the minimum **consecutive**
+  sleeper-berth period in §395.1(g). Shorter rests (e.g. 30-minute break) stay OFF.
+- **10 consecutive hours** off duty: shown as **7h SB + 3h OFF**, one valid pattern under §395.3(a)(1).
+- **34-hour** cycle restart: shown as OFF (may include SB in real logs; we keep OFF for clarity).
+
+HOS reset math treats all off-duty/SB time the same; only labels/grid rows differ.
 """
 
 from __future__ import annotations
@@ -22,7 +27,9 @@ MIN_11_DRIVE = 660
 MIN_14_WINDOW = 840
 MIN_8_DRIVE = 480
 MIN_30_BREAK = 30
-MIN_5H_SB = 5 * 60  # rest blocks this long or longer are labeled sleeper berth (planning aid)
+MIN_7H_SB = 7 * 60  # §395.1(g): long segment of split berth must be ≥7h consecutive in sleeper
+MIN_10H_SB_PART = MIN_7H_SB
+MIN_10H_OFF_PART = MIN_10H - MIN_7H_SB  # 3h — pairs with 7h SB for 10h consecutive rest
 MIN_34H_RESTART = 34 * 60
 FUEL_ON_MIN = 30
 PICKUP_ON_MIN = 60
@@ -149,8 +156,25 @@ def simulate_hos(
         nonlocal t, off_streak
         if mins <= 0:
             return
+        # Model full 10h daily reset as 7h sleeper + 3h off duty (§395.3(a)(1) combined rest).
+        if (
+            mins == MIN_10H
+            and sb_if_long
+            and label == "10-hour off-duty reset"
+        ):
+            emit_off(
+                MIN_10H_SB_PART,
+                "10-hour off-duty reset — 7h sleeper berth",
+                sb_if_long=True,
+            )
+            emit_off(
+                MIN_10H_OFF_PART,
+                "10-hour off-duty reset — 3h off duty",
+                sb_if_long=False,
+            )
+            return
         end = t + timedelta(minutes=mins)
-        use_sb = sb_if_long and mins >= MIN_5H_SB
+        use_sb = sb_if_long and mins >= MIN_7H_SB
         rest_status: Status = "SB" if use_sb else "OFF"
         _append_event(events, t, end, rest_status, label)
         off_streak += mins

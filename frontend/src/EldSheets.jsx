@@ -44,7 +44,8 @@ function DayGrid({ day, drivingMiles }) {
               {' · '}
             </>
           ) : null}
-          15-minute grid (planning aid — not a certified ELD).
+          15-minute grid (planning aid — not a certified ELD). Rest ≥7h shown as sleeper berth;
+          10-hour daily resets as 7h SB + 3h off duty (FMCSA-style split).
         </p>
       </header>
       <div className="eld-hour-labels">

@@ -4,11 +4,11 @@ from django.test import SimpleTestCase
 from zoneinfo import ZoneInfo
 
 from api.services.hos import (
-    MIN_10H,
+    MIN_10H_OFF_PART,
     MIN_11_DRIVE,
     MIN_30_BREAK,
     MIN_34H_RESTART,
-    MIN_5H_SB,
+    MIN_7H_SB,
     build_work_items,
     merge_adjacent_events,
     plan_trip_hos,
@@ -51,7 +51,18 @@ class HosSimulationTests(SimpleTestCase):
             for e in events
             if e["status"] == "SB"
         )
-        self.assertGreaterEqual(sb_long, MIN_10H - 1)
+        self.assertGreaterEqual(sb_long, MIN_7H_SB - 1)
+        self.assertAlmostEqual(sb_long, MIN_7H_SB, delta=2.0)
+        off_after_reset = next(
+            e
+            for e in events
+            if e["status"] == "OFF" and "3h off duty" in (e.get("label") or "")
+        )
+        self.assertAlmostEqual(
+            (off_after_reset["end"] - off_after_reset["start"]).total_seconds() / 60.0,
+            MIN_10H_OFF_PART,
+            delta=1.0,
+        )
 
     def test_8_hour_drive_requires_30_min_break_before_more(self):
         items = [("drive", 8 * 60 + 60, "drive past 8h")]
@@ -66,12 +77,12 @@ class HosSimulationTests(SimpleTestCase):
         self.assertTrue(any((e["end"] - e["start"]).total_seconds() >= 29 * 60 for e in off_blocks))
         self.assertTrue(
             all(
-                (e["end"] - e["start"]).total_seconds() / 60.0 < MIN_5H_SB
+                (e["end"] - e["start"]).total_seconds() / 60.0 < MIN_7H_SB
                 for e in off_blocks
             )
         )
 
-    def test_rest_five_hours_or_more_is_sleeper_berth(self):
+    def test_rest_seven_hours_or_more_is_sleeper_berth(self):
         items = [("drive", MIN_11_DRIVE + 30, "long drive")]
         events = merge_adjacent_events(
             simulate_hos(
@@ -83,11 +94,11 @@ class HosSimulationTests(SimpleTestCase):
         for e in events:
             mins = (e["end"] - e["start"]).total_seconds() / 60.0
             if e["status"] == "SB":
-                self.assertGreaterEqual(mins, MIN_5H_SB)
+                self.assertGreaterEqual(mins, MIN_7H_SB)
             elif e["status"] == "OFF":
                 if "34-hour" in (e.get("label") or ""):
                     continue
-                self.assertLess(mins, MIN_5H_SB)
+                self.assertLess(mins, MIN_7H_SB)
 
     def test_34_hour_cycle_restart_is_off_duty_not_sleeper(self):
         events = merge_adjacent_events(

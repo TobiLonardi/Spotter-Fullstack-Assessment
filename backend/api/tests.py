@@ -9,9 +9,11 @@ from api.services.hos import (
     MIN_30_BREAK,
     MIN_34H_RESTART,
     MIN_5H_SB,
+    build_work_items,
     merge_adjacent_events,
     plan_trip_hos,
     simulate_hos,
+    slice_eld_days,
     split_leg_by_fuel,
 )
 
@@ -135,3 +137,48 @@ class HosSimulationTests(SimpleTestCase):
         self.assertTrue(len(legs) > 0)
         self.assertTrue(len(eld_days) > 0)
         self.assertIn("segments", eld_days[0])
+
+    def test_fourteen_hour_window_counts_elapsed_including_breaks(self):
+        """30-minute break advances the 14-hour clock; only 630 min drive fits before 10h reset."""
+        items = [("on", 3 * 60, "yard"), ("drive", 8 * 60 + 180, "linehaul")]
+        events = merge_adjacent_events(
+            simulate_hos(
+                items,
+                datetime(2026, 1, 1, 6, 0, tzinfo=ZoneInfo("UTC")),
+                0.0,
+            )
+        )
+        drive_before_first_10h = 0.0
+        for e in events:
+            if "10-hour off-duty reset" in (e.get("label") or ""):
+                break
+            if e["status"] == "D":
+                drive_before_first_10h += (e["end"] - e["start"]).total_seconds() / 60.0
+        self.assertAlmostEqual(drive_before_first_10h, 630.0, delta=2.0)
+        total_drive = sum(
+            (e["end"] - e["start"]).total_seconds() / 60.0
+            for e in events
+            if e["status"] == "D"
+        )
+        self.assertAlmostEqual(total_drive, 660.0, delta=2.0)
+
+    def test_event_ending_at_local_midnight_fills_grid_to_end_of_day(self):
+        tz = ZoneInfo("America/Chicago")
+        start = datetime(2026, 1, 1, 18, 0, tzinfo=tz)
+        end = datetime(2026, 1, 2, 0, 0, tzinfo=tz)
+        merged = merge_adjacent_events(
+            [{"status": "D", "start": start, "end": end, "label": "to midnight"}]
+        )
+        days = slice_eld_days(merged, "America/Chicago")
+        day1 = next(d for d in days if d["date"] == "2026-01-01")
+        last = max(day1["segments"], key=lambda s: s["end_minute"])
+        self.assertEqual(last["end_minute"], 24 * 60)
+
+    def test_long_drive_to_pickup_is_split_for_fuel(self):
+        pu_chunks = split_leg_by_fuel(0.0, 2500.0, 2500.0)
+        items = build_work_items(pu_chunks, [(100.0, 120.0)])
+        drive_labels = [x[2] for x in items if x[0] == "drive"]
+        self.assertGreater(len(drive_labels), 2)
+        self.assertTrue(any("segment" in lab for lab in drive_labels))
+        fuel_count = sum(1 for x in items if x[2] == "Fuel (on duty, not driving)")
+        self.assertGreaterEqual(fuel_count, 2)

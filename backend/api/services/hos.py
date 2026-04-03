@@ -1,7 +1,8 @@
 """
 Hours-of-service simulation (planning aid only — not certified for compliance).
 
-Property-carrying: 11h drive / 10h off, 14h on-duty window, 30min break after 8h driving,
+Property-carrying: 11h drive / 10h off, 14h *elapsed* window from duty start (short off-duty
+still counts), 30min break after 8h driving,
 70h/8d with simplified 34h restart when the cycle is exhausted.
 
 Rest blocks of 5+ consecutive hours are labeled SB (sleeper berth) instead of OFF for display,
@@ -68,6 +69,8 @@ def split_leg_by_fuel(
 class HosState:
     consecutive_off: int = 0
     driving_since_reset: int = 0
+    # Elapsed minutes since start of current duty period (after 10h reset): ON + D + short
+    # off-duty/SB; matches FMCSA 14-hour *consecutive* window (breaks do not pause the clock).
     on_duty_since_reset: int = 0
     driving_since_30break: int = 0
     cycle_used_hours: float = 0.0
@@ -152,6 +155,7 @@ def simulate_hos(
         _append_event(events, t, end, rest_status, label)
         off_streak += mins
         t = end
+        state.on_duty_since_reset += mins
 
     def start_on_or_drive() -> None:
         nonlocal off_streak
@@ -246,16 +250,24 @@ def simulate_hos(
 
 
 def build_work_items(
-    drive_to_pickup_min: int,
+    drive_to_pickup_legs: list[tuple[float, float]],
     pickup_dropoff_legs: list[tuple[float, float]],
 ) -> list[tuple[str, int, str]]:
     """
-    pickup_dropoff_legs: list of (miles, minutes) for drive chunks (already split by fuel).
-    Inserts 30min ON between chunks for fuel.
+    drive_to_pickup_legs / pickup_dropoff_legs: (miles, minutes) chunks split at fuel thresholds.
+    Inserts 30min ON between chunks for fuel within each phase.
     """
     items: list[tuple[str, int, str]] = []
-    if drive_to_pickup_min > 0:
-        items.append(("drive", drive_to_pickup_min, "Drive to pickup"))
+    n_pu = len(drive_to_pickup_legs)
+    for i, (_mi, ti) in enumerate(drive_to_pickup_legs):
+        label = (
+            "Drive to pickup"
+            if n_pu == 1
+            else f"Drive to pickup segment {i + 1}"
+        )
+        items.append(("drive", max(0, int(round(ti))), label))
+        if i < n_pu - 1:
+            items.append(("on", FUEL_ON_MIN, "Fuel (on duty, not driving)"))
     items.append(("on", PICKUP_ON_MIN, "Pickup (on duty, not driving)"))
     for i, (mi, ti) in enumerate(pickup_dropoff_legs):
         items.append(("drive", max(0, int(round(ti))), f"Haul segment {i + 1}"))
@@ -341,7 +353,12 @@ def slice_eld_days(
 
             start_min = _local_minutes_from_midnight(cur, tz)
             if chunk_end >= end_t:
-                end_min = _local_minutes_from_midnight(end_t, tz)
+                # Event ends exactly at local midnight: end_t is on the *next* calendar day, so
+                # minutes-from-midnight is 0; for the slice ending this day use end-of-day.
+                if chunk_end == next_mid == end_t:
+                    end_min = 24 * 60
+                else:
+                    end_min = _local_minutes_from_midnight(end_t, tz)
             else:
                 end_min = 24 * 60
 
@@ -379,8 +396,9 @@ def plan_trip_hos(
     avg_mph: float = 55.0,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """
-    Returns (legs, eld_days, raw_events) using miles-based fuel splits on pickup->dropoff leg.
-    Odometer starts at 0; includes miles to pickup in fuel accounting.
+    Returns (legs, eld_days, raw_events) using miles-based fuel splits for drive-to-pickup and
+    pickup->dropoff. Odometer starts at 0 for the empty truck; fuel thresholds apply from mile 0
+    through the full trip.
     """
     from .routing import meters_to_miles
 
@@ -393,9 +411,16 @@ def plan_trip_hos(
     if min_pd == 0 and miles_pd > 0.5:
         min_pd = max(1, int(round((miles_pd / avg_mph) * 60)))
 
+    if miles_to_pu > 0:
+        drive_to_pu_chunks = split_leg_by_fuel(0.0, miles_to_pu, float(min_to_pu))
+    else:
+        drive_to_pu_chunks = []
+    if not drive_to_pu_chunks and min_to_pu > 0:
+        drive_to_pu_chunks = [(max(miles_to_pu, 0.0), float(min_to_pu))]
+
     odo_after_pu_leg = miles_to_pu
     fuel_chunks = split_leg_by_fuel(odo_after_pu_leg, miles_pd, float(min_pd))
-    work = build_work_items(min_to_pu, fuel_chunks)
+    work = build_work_items(drive_to_pu_chunks, fuel_chunks)
     start_aware = trip_start
     if start_aware.tzinfo is None:
         start_aware = start_aware.replace(tzinfo=ZoneInfo(timezone))

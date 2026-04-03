@@ -52,7 +52,6 @@ def split_leg_by_fuel(
             target = odo + 1000.0
             miles_to_threshold = 1000.0
         use_m = min(miles_to_threshold, m_rem)
-        frac = use_m / miles_total if miles_total > 0 else 0.0
         use_min = min_rem * (use_m / m_rem) if m_rem > 0 else 0.0
         chunks.append((use_m, use_min))
         odo += use_m
@@ -167,6 +166,12 @@ def simulate_hos(
                 off_streak = 0
                 continue
             chunk = int(min(remaining, rem))
+            if chunk <= 0:
+                emit_off(MIN_34H_RESTART, "34-hour cycle restart")
+                state.cycle_used_hours = 0.0
+                _finish_off_period(off_streak, state)
+                off_streak = 0
+                continue
             end = t + timedelta(minutes=chunk)
             _append_event(events, t, end, "ON", label)
             state.on_duty_since_reset += chunk

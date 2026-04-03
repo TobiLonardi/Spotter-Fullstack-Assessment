@@ -138,17 +138,16 @@
   font-family: var(--mono);
 }
 
-.leg-driving .leg-tag,
-.leg-d .leg-tag {
+.leg-tag.leg-driving {
   background: rgba(30, 90, 140, 0.2);
   color: var(--text-h);
 }
 
-.leg-rest .leg-tag {
+.leg-tag.leg-rest {
   background: rgba(100, 100, 100, 0.2);
 }
 
-.leg-on_duty .leg-tag {
+.leg-tag.leg-on_duty {
   background: rgba(180, 120, 40, 0.2);
 }
 

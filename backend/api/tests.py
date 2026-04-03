@@ -61,6 +61,24 @@ class HosSimulationTests(SimpleTestCase):
         off_blocks = [e for e in events if e["status"] == "OFF"]
         self.assertTrue(any((e["end"] - e["start"]).total_seconds() >= 29 * 60 for e in off_blocks))
 
+    def test_on_duty_with_near_full_cycle_does_not_hang(self):
+        """If cycle has <1 min left, int(chunk) must not spin forever (emit_on guard)."""
+        items = [("on", 120, "Pickup (on duty, not driving)")]
+        events = merge_adjacent_events(
+            simulate_hos(
+                items,
+                datetime(2026, 1, 1, 6, 0, tzinfo=ZoneInfo("UTC")),
+                69.99,
+            )
+        )
+        self.assertTrue(events)
+        on_minutes = sum(
+            (e["end"] - e["start"]).total_seconds() / 60.0
+            for e in events
+            if e["status"] == "ON"
+        )
+        self.assertAlmostEqual(on_minutes, 120.0, delta=1.0)
+
     def test_plan_trip_hos_returns_eld_days(self):
         legs, eld_days, _ = plan_trip_hos(
             0.0,

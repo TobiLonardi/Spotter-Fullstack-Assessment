@@ -98,6 +98,7 @@ export default function App() {
   const [dropoffLocation, setDropoffLocation] = useState('')
   const [cycleUsed, setCycleUsed] = useState('0')
   const [timezone, setTimezone] = useState('America/Chicago')
+  const [eldTimezone, setEldTimezone] = useState('America/Chicago')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [plan, setPlan] = useState(null)
@@ -107,9 +108,9 @@ export default function App() {
       computeDrivingMilesByDate(
         plan?.legs,
         plan?.route?.distance_miles,
-        timezone,
+        eldTimezone,
       ),
-    [plan?.legs, plan?.route?.distance_miles, timezone],
+    [plan?.legs, plan?.route?.distance_miles, eldTimezone],
   )
 
   async function submit(e) {
@@ -140,6 +141,7 @@ export default function App() {
         throw new Error(msg || `HTTP ${res.status}`)
       }
       setPlan(data)
+      setEldTimezone(timezone)
     } catch (err) {
       setError(err.message || String(err))
     } finally {

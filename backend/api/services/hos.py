@@ -494,9 +494,7 @@ def plan_trip_hos(
 def trip_plan_hos_model() -> dict[str, Any]:
     """Shipped with every plan so the UI can show scope without hiding assumptions."""
     return {
-        "summary": (
-            "Simplified property-carrying HOS planner; not an FMCSA-certified ELD output."
-        ),
+        "summary": "Simplified property-carrying HOS planner.",
         "implemented_rules": [
             "11-hour driving limit per duty period after qualifying rest",
             "14-hour consecutive on-duty window from duty start (short OFF/SB counts; break does not pause)",

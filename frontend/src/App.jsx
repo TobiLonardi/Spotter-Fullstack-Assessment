@@ -22,6 +22,23 @@ function formatWhen(iso) {
   }
 }
 
+/** Human-readable duration; ≥60 min uses hours (and leftover minutes if any). */
+function formatDurationMinutes(mins) {
+  if (mins == null || mins === '') return '—'
+  const m = Number(mins)
+  if (!Number.isFinite(m) || m < 0) return `${mins} min`
+  if (m < 60) {
+    const s = m % 1 === 0 ? String(m) : m.toFixed(1)
+    return `${s} min`
+  }
+  const h = Math.floor(m / 60)
+  const r = Math.round((m - h * 60) * 10) / 10
+  if (r <= 0) return `${h} h`
+  if (r >= 60) return `${h + 1} h`
+  const rs = r % 1 === 0 ? String(r) : r.toFixed(1)
+  return `${h} h ${rs} min`
+}
+
 function legStatusLabel(status) {
   switch (status) {
     case 'D':
@@ -209,8 +226,8 @@ export default function App() {
             <h2>Route</h2>
             <p>
               <strong>{plan.route?.distance_miles}</strong> miles ·{' '}
-              <strong>{plan.route?.duration_minutes}</strong> min driving (API estimate,
-              before mandatory breaks)
+              <strong>{formatDurationMinutes(plan.route?.duration_minutes)}</strong> driving
+              (API estimate, before mandatory breaks)
             </p>
             <TripMap
               lineLatLng={plan.route?.coordinates_latlng || []}
@@ -232,7 +249,7 @@ export default function App() {
                   <strong>{leg.label}</strong>
                   <div className="leg-meta">
                     {formatWhen(leg.start)} → {formatWhen(leg.end)} ·{' '}
-                    {leg.duration_minutes} min
+                    {formatDurationMinutes(leg.duration_minutes)}
                   </div>
                 </li>
               ))}

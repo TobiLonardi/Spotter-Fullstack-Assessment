@@ -2,7 +2,7 @@
 
 Django + React (Vite) app for **truck trip planning**: geocoded locations, **driving route** on a map (OpenStreetMap tiles + Leaflet), **step-by-step legs** (driving, breaks, pickup/dropoff, fuel), and **ELD-style daily log grids** derived from a simplified **Hours of Service** model.
 
-**Disclaimer:** Output is a **planning aid only**. It is **not** an FMCSA-certified ELD and must not be used as proof of compliance.
+**Disclaimer:** Output is a **planning aid only**.
 
 ## Prerequisites
 

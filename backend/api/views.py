@@ -114,7 +114,7 @@ class TripPlanView(APIView):
 
         return Response(
             {
-                "disclaimer": "This output is a planning aid only and is not an FMCSA-certified ELD.",
+                "disclaimer": "This output is a planning aid only.",
                 "hos_model": trip_plan_hos_model(),
                 "route": {
                     "type": "LineString",

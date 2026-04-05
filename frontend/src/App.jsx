@@ -5,6 +5,7 @@ import EldSheets from './EldSheets.jsx'
 import TripMap from './TripMap.jsx'
 
 function apiUrl(path) {
+  // Vite env is optional in dev (Vite proxy) but needed when the UI is on another origin.
   const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
   return base ? `${base}${path}` : path
 }
@@ -19,6 +20,23 @@ function formatWhen(iso) {
   } catch {
     return iso
   }
+}
+
+/** Human-readable duration; ≥60 min uses hours (and leftover minutes if any). */
+function formatDurationMinutes(mins) {
+  if (mins == null || mins === '') return '—'
+  const m = Number(mins)
+  if (!Number.isFinite(m) || m < 0) return `${mins} min`
+  if (m < 60) {
+    const s = m % 1 === 0 ? String(m) : m.toFixed(1)
+    return `${s} min`
+  }
+  const h = Math.floor(m / 60)
+  const r = Math.round((m - h * 60) * 10) / 10
+  if (r <= 0) return `${h} h`
+  if (r >= 60) return `${h + 1} h`
+  const rs = r % 1 === 0 ? String(r) : r.toFixed(1)
+  return `${h} h ${rs} min`
 }
 
 function legStatusLabel(status) {
@@ -99,6 +117,7 @@ export default function App() {
     setError(null)
     setPlan(null)
     setLoading(true)
+    // Field names mirror TripPlanRequestSerializer — keep snake_case for DRF.
     const body = {
       current_location: currentLocation.trim(),
       pickup_location: pickupLocation.trim(),
@@ -142,27 +161,40 @@ export default function App() {
         <label>
           Current location
           <input
+            id="current-location"
             value={currentLocation}
             onChange={(e) => setCurrentLocation(e.target.value)}
-            placeholder="Address or city, state"
+            placeholder="e.g. Dallas, TX, USA"
+            aria-describedby="current-loc-hint"
             required
           />
+          <p id="current-loc-hint" className="field-hint">
+            City and state, full street address, or coordinates. Include country
+            when the name is ambiguous.
+          </p>
         </label>
         <label>
           Pickup location
           <input
+            id="pickup-location"
             value={pickupLocation}
             onChange={(e) => setPickupLocation(e.target.value)}
-            placeholder="Address or city, state"
+            placeholder="e.g. Houston, TX, USA"
+            aria-describedby="pickup-loc-hint"
             required
           />
+          <p id="pickup-loc-hint" className="field-hint">
+            Same formats as current location. Example:{' '}
+            <span className="field-hint-example">3500 Montrose Blvd, Houston, TX, USA</span>
+          </p>
         </label>
         <label>
           Dropoff location
           <input
+            id="dropoff-location"
             value={dropoffLocation}
             onChange={(e) => setDropoffLocation(e.target.value)}
-            placeholder="Address or city, state"
+            placeholder="e.g. San Antonio, TX, USA"
             required
           />
         </label>
@@ -181,10 +213,15 @@ export default function App() {
         <label>
           Timezone (for daily logs)
           <input
+            id="trip-timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
-            placeholder="America/Chicago"
+            placeholder="e.g. America/Chicago"
+            aria-describedby="timezone-hint"
           />
+          <p id="timezone-hint" className="field-hint">
+            IANA timezone name (how days are grouped on the ELD-style grid).
+          </p>
         </label>
         <button type="submit" disabled={loading}>
           {loading ? 'Planning…' : 'Plan trip'}
@@ -199,16 +236,14 @@ export default function App() {
 
       {plan && (
         <>
-          {plan.disclaimer && <p className="disclaimer card">{plan.disclaimer}</p>}
-
           <HosModelDetails hosModel={plan.hos_model} />
 
           <section className="card route-summary">
             <h2>Route</h2>
             <p>
               <strong>{plan.route?.distance_miles}</strong> miles ·{' '}
-              <strong>{plan.route?.duration_minutes}</strong> min driving (API estimate,
-              before mandatory breaks)
+              <strong>{formatDurationMinutes(plan.route?.duration_minutes)}</strong> driving
+              (API estimate, before mandatory breaks)
             </p>
             <TripMap
               lineLatLng={plan.route?.coordinates_latlng || []}
@@ -230,7 +265,7 @@ export default function App() {
                   <strong>{leg.label}</strong>
                   <div className="leg-meta">
                     {formatWhen(leg.start)} → {formatWhen(leg.end)} ·{' '}
-                    {leg.duration_minutes} min
+                    {formatDurationMinutes(leg.duration_minutes)}
                   </div>
                 </li>
               ))}

@@ -1,18 +1,11 @@
 """
-Hours-of-service simulation (planning aid only — not certified for compliance).
+HOS planner for property-carrying — educational only, not certified.
 
-Property-carrying: 11h drive / 10h off, 14h *elapsed* window from duty start (short off-duty
-still counts), 30min break after 8h driving,
-70h/8d: on-duty (D+ON) minutes counted in a rolling 8-day window ending at current time;
-34+ consecutive hours off clears the cycle (planning simplification vs full FMCSA restart nuance).
+Core limits: 11 drive / 10 off, 14h elapsed from go-on-duty, 30m after 8h driving,
+70h on-duty in a rolling 8-day window, 34h off clears the cycle (simplified vs real restart rules).
 
-Display convention (FMCSA-aligned, still a planning model):
-- Sleeper berth (SB): rest segments of **≥7 consecutive hours** — matches the minimum **consecutive**
-  sleeper-berth period in §395.1(g). Shorter rests (e.g. 30-minute break) stay OFF.
-- **10 consecutive hours** off duty: shown as **7h SB + 3h OFF**, one valid pattern under §395.3(a)(1).
-- **34-hour** cycle restart: shown as OFF (may include SB in real logs; we keep OFF for clarity).
-
-HOS reset math treats all off-duty/SB time the same; only labels/grid rows differ.
+Grid labels: ≥7h consecutive rest → SB (§395.1(g) long leg of split); 10h reset drawn as 7h SB + 3h OFF;
+34h restart as all OFF. Math does not care about SB vs OFF except for display.
 """
 
 from __future__ import annotations
@@ -56,7 +49,7 @@ def _on_duty_minutes_in_window(
     intervals: list[tuple[datetime, datetime]],
     window_end: datetime,
 ) -> float:
-    """Sum minutes of D/ON intervals overlapping [window_end - 8d, window_end]."""
+    """Rolling 8-day on-duty (D+ON) total ending at `window_end`."""
     ws = window_end - CYCLE_WINDOW
     total = 0.0
     for a, b in intervals:
@@ -69,7 +62,7 @@ def _total_on_duty_after_block(
     block_start: datetime,
     block_end: datetime,
 ) -> float:
-    """Rolling-window total at block_end if [block_start, block_end) is added (on-duty)."""
+    """What the 70h/8d tally would be if we tack on one more on-duty block."""
     we = block_end
     ws = we - CYCLE_WINDOW
     total = _on_duty_minutes_in_window(intervals, we)
@@ -82,7 +75,7 @@ def _max_feasible_on_duty_chunk(
     t: datetime,
     hi_minutes: int,
 ) -> int:
-    """Largest integer minutes in [0, hi_minutes] for a new on-duty block starting at t."""
+    """Binary search: longest on-duty stretch from `t` that still fits under 70/8."""
     if hi_minutes <= 0:
         return 0
     lo_b, hi_b = 0, hi_minutes
@@ -100,7 +93,7 @@ def _max_feasible_on_duty_chunk(
 
 
 def next_fuel_threshold_mile(odometer: float) -> float:
-    """Next mile marker where fuel is required (1000, 2000, ...)."""
+    """Planning rule: stop every 1000 mi → next whole thousand ahead of `odometer`."""
     return (int(odometer) // 1000 + 1) * 1000
 
 
@@ -109,7 +102,7 @@ def split_leg_by_fuel(
     miles_total: float,
     minutes_total: float,
 ) -> list[tuple[float, float]]:
-    """Split one drive leg into (miles, minutes) pieces separated by fuel stops."""
+    """Chop a drive into pre-threshold + post-threshold chunks so we can insert fuel ON."""
     if miles_total <= 0:
         return []
     chunks: list[tuple[float, float]] = []
@@ -195,10 +188,7 @@ def simulate_hos(
     start: datetime,
     initial_cycle_used_hours: float,
 ) -> list[dict[str, Any]]:
-    """
-    work_items: list of ("drive", minutes, label) or ("on", minutes, label).
-    Driving and ON (not driving) count toward the 70h / 8-day rolling on-duty window.
-    """
+    """Walk `work_items` ("drive"|"on", minutes, label); D and ON both feed the 70h/8d window."""
     state = HosState()
     events: list[dict[str, Any]] = []
     t = start
@@ -324,10 +314,7 @@ def build_work_items(
     drive_to_pickup_legs: list[tuple[float, float]],
     pickup_dropoff_legs: list[tuple[float, float]],
 ) -> list[tuple[str, int, str]]:
-    """
-    drive_to_pickup_legs / pickup_dropoff_legs: (miles, minutes) chunks split at fuel thresholds.
-    Inserts 30min ON between chunks for fuel within each phase.
-    """
+    """Interleave drive chunks with short ON for fuel, plus fixed pickup/dropoff ON."""
     items: list[tuple[str, int, str]] = []
     n_pu = len(drive_to_pickup_legs)
     for i, (_mi, ti) in enumerate(drive_to_pickup_legs):
@@ -392,7 +379,7 @@ def snap_minute_grid(m: float) -> int:
 
 
 def _local_minutes_from_midnight(dt: datetime, tz: ZoneInfo) -> float:
-    """Wall-clock minutes since local midnight (DST-safe; not raw timedelta across offset changes)."""
+    """Minutes on the driver's wall clock since midnight — avoids DST timedelta bugs."""
     loc = dt.astimezone(tz)
     return (
         loc.hour * 60
@@ -406,7 +393,7 @@ def slice_eld_days(
     events: list[dict[str, Any]],
     tz_name: str,
 ) -> list[dict[str, Any]]:
-    """Split merged events into local calendar days with 15-minute grid segments."""
+    """Cut events on local midnights, then snap to the 15-minute ELD-style grid."""
     tz = ZoneInfo(tz_name)
     per_day: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
@@ -472,11 +459,7 @@ def plan_trip_hos(
     initial_cycle_used_hours: float,
     avg_mph: float = 55.0,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    """
-    Returns (legs, eld_days, raw_events) using miles-based fuel splits for drive-to-pickup and
-    pickup->dropoff. Odometer starts at 0 for the empty truck; fuel thresholds apply from mile 0
-    through the full trip.
-    """
+    """(timeline legs, per-day grid, merged events). Odo starts at 0; fuel splits use miles."""
     from .routing import meters_to_miles
 
     miles_to_pu = meters_to_miles(distance_m_to_pickup)
@@ -509,14 +492,9 @@ def plan_trip_hos(
 
 
 def trip_plan_hos_model() -> dict[str, Any]:
-    """
-    Static description of what the simulator does vs FMCSA-style property rules.
-    Returned on every /api/trip/plan/ response for transparency (no extra user inputs).
-    """
+    """Shipped with every plan so the UI can show scope without hiding assumptions."""
     return {
-        "summary": (
-            "Simplified property-carrying HOS planner; not an FMCSA-certified ELD output."
-        ),
+        "summary": "Simplified property-carrying HOS planner.",
         "implemented_rules": [
             "11-hour driving limit per duty period after qualifying rest",
             "14-hour consecutive on-duty window from duty start (short OFF/SB counts; break does not pause)",

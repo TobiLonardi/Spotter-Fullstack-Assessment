@@ -19,6 +19,7 @@ function FitBounds({ positions }) {
 
 export default function TripMap({ lineLatLng, stops }) {
   const positions = lineLatLng?.length ? lineLatLng : (stops || []).map((s) => [s.lat, s.lng])
+  // Rough US center when we have nothing yet (e.g. first paint before fitBounds).
   const center = positions[0] || [39.8283, -98.5795]
 
   return (

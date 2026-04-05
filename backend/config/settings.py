@@ -54,6 +54,9 @@ SECRET_KEY = os.environ.get(
 DEBUG = _env_bool('DEBUG', True)
 
 ALLOWED_HOSTS = _env_list('ALLOWED_HOSTS', ['localhost', '127.0.0.1'])
+# Vercel sets VERCEL=1 and VERCEL_URL; allow any *.vercel.app host unless overridden via ALLOWED_HOSTS.
+if os.environ.get('VERCEL') and '.vercel.app' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS = [*ALLOWED_HOSTS, '.vercel.app']
 
 
 # Application definition

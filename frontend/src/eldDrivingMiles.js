@@ -1,7 +1,5 @@
-/**
- * Allocate trip route miles across calendar days using driving time only (same timezone as ELD).
- * Uses implied mph = distanceMiles / totalDrivingHours from /api/trip/plan legs.
- */
+// Spread total route miles across days in proportion to driving minutes (from plan legs).
+// Date keys use en-CA (YYYY-MM-DD) so they sort lexicographically and match backend dates.
 
 export function computeDrivingMilesByDate(legs, distanceMiles, timezone) {
   const minutesByDate = {}

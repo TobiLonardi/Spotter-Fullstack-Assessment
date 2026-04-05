@@ -1,3 +1,4 @@
+// Same vertical order as a paper log: off → sleeper → drive → on.
 const ROWS = [
   { key: 'OFF', label: 'Off duty' },
   { key: 'SB', label: 'Sleeper berth' },

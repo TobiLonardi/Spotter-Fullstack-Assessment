@@ -5,6 +5,7 @@ import EldSheets from './EldSheets.jsx'
 import TripMap from './TripMap.jsx'
 
 function apiUrl(path) {
+  // Vite env is optional in dev (Vite proxy) but needed when the UI is on another origin.
   const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
   return base ? `${base}${path}` : path
 }
@@ -99,6 +100,7 @@ export default function App() {
     setError(null)
     setPlan(null)
     setLoading(true)
+    // Field names mirror TripPlanRequestSerializer — keep snake_case for DRF.
     const body = {
       current_location: currentLocation.trim(),
       pickup_location: pickupLocation.trim(),

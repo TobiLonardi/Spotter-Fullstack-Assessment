@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 
 class TripPlanRequestSerializer(serializers.Serializer):
-    """Trip inputs: locations as address strings or {lat, lon} / {lat, lng} objects."""
+    """Matches what the React form posts; locations stay JSONField on purpose."""
 
     current_location = serializers.JSONField()
     pickup_location = serializers.JSONField()

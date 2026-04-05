@@ -1,4 +1,4 @@
-"""Directions via OpenRouteService (driving-hgv, with driving-car fallback)."""
+"""ORS directions: prefer HGV profile; some keys/plans only expose driving-car."""
 
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ def _resolve_ors_url() -> str:
 
 
 def _ors_profile_unknown_response(r: requests.Response) -> bool:
+    # ORS uses error code 2003 for unknown profile; message text varies by version.
     if r.status_code != 400:
         return False
     try:
@@ -53,10 +54,7 @@ def get_directions(
     api_key: str | None = None,
     base_url: str | None = None,
 ) -> dict[str, Any]:
-    """
-    Call ORS directions. coordinates_lonlat: [[lon, lat], ...] in order.
-    Returns dict with keys: coordinates (list [lon, lat] for LineString), distance_m, duration_s, segments (list of per-leg summaries).
-    """
+    """POST GeoJSON directions; `coordinates_lonlat` is [[lon, lat], ...] in visit order."""
     key = api_key or os.environ.get("ORS_API_KEY", "").strip()
     if not key:
         raise ValueError(

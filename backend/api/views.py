@@ -54,7 +54,7 @@ class TripPlanView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        # resolve_location returns (lat, lon); ORS expects GeoJSON order lon, lat.
+        # resolve_location returns (lat, lon); routing expects [lon, lat] per point.
         lonlat = [
             [cur[1], cur[0]],
             [pu[1], pu[0]],

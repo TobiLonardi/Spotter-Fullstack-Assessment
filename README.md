@@ -11,7 +11,7 @@ Django + React (Vite) app for **truck trip planning**: geocoded locations, **dri
 
 ## Environment variables
 
-Create and edit `.env` at the **repository root** as described in **Run locally** (below). See `.env.example` for all keys. Routing uses OpenRouteService; set **`ORS_API_KEY`** (and optionally **`ORS_BASE_URL`**) or trip planning will fail when the API runs.
+Create and edit `.env` at the **repository root** as described in **Run locally** (below). See `.env.example` for all keys. Trip routing uses **TomTom Routing API**; set **`TOMTOM_API_KEY`** or planning will fail when the API runs.
 
 Django loads `.env` from the repo root (`ROOT_DIR` in `backend/config/settings.py`). Vite reads `VITE_*` variables from the same root (`envDir` in `frontend/vite.config.js`). Keep `.env` **out of version control** (gitignored).
 
@@ -25,7 +25,7 @@ Django loads `.env` from the repo root (`ROOT_DIR` in `backend/config/settings.p
    - Windows (PowerShell or CMD, from repo root): `copy .env.example .env`
    - macOS / Linux: `cp .env.example .env`
 
-3. **Edit `.env`** and set **`ORS_API_KEY`** (see `.env.example` and [OpenRouteService signup](https://openrouteservice.org/dev/#/signup)). Trip routing will fail without a valid key when the API is called. Optional: adjust **`ORS_BASE_URL`**, **`SECRET_KEY`**, **`CORS_ALLOWED_ORIGINS`**, etc.
+3. **Edit `.env`** and set **`TOMTOM_API_KEY`** (see `.env.example` and [TomTom Developer Portal](https://developer.tomtom.com/); enable **Routing API** for the key). Trip routing will fail without a valid key when the API is called. Optional: adjust **`SECRET_KEY`**, **`CORS_ALLOWED_ORIGINS`**, etc.
 
 4. **Start the backend** (Terminal 1) — listens on **http://127.0.0.1:8000**:
 

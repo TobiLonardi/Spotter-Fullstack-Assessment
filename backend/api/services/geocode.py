@@ -1,4 +1,4 @@
-"""Geocode addresses via Nominatim (OSM)."""
+"""Nominatim search for free-text; structured lat/lon passes through unchanged."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ DEFAULT_UA = "SpotterTripPlanner/1.0 (assessment; contact: dev@localhost)"
 
 @lru_cache(maxsize=256)
 def _search_cached(query: str) -> tuple[float, float] | None:
+    # Cache repeated queries — keeps us polite with Nominatim and speeds replans.
     params = urlencode(
         {
             "q": query,
@@ -36,10 +37,7 @@ def _search_cached(query: str) -> tuple[float, float] | None:
 
 
 def resolve_location(value: Any) -> tuple[float, float]:
-    """
-    Return (lat, lon) for a free-text query, {"lat": x, "lon": y} / {"lat", "lng"},
-    or a two-element [lat, lon] array.
-    """
+    """Normalize to (lat, lon): string → Nominatim, or dict/list the UI might send."""
     if isinstance(value, dict):
         lat = value.get("lat")
         lon = value.get("lon")

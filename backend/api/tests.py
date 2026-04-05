@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
+from unittest.mock import Mock
 
 from django.test import SimpleTestCase
 from zoneinfo import ZoneInfo
 
 from api.services.geocode import resolve_location
+from api.services.routing import _parse_tomtom_route, _raise_tomtom_http_error
 from api.services.hos import (
     MIN_10H_OFF_PART,
     MIN_11_DRIVE,
@@ -20,6 +22,67 @@ from api.services.hos import (
     split_leg_by_fuel,
     trip_plan_hos_model,
 )
+
+
+class TomTomRouteParseTests(SimpleTestCase):
+    def test_parse_route_merges_leg_points_and_dedupes_boundary(self):
+        data = {
+            "routes": [
+                {
+                    "summary": {"lengthInMeters": 1000, "travelTimeInSeconds": 120},
+                    "legs": [
+                        {
+                            "summary": {
+                                "lengthInMeters": 400,
+                                "travelTimeInSeconds": 50,
+                            },
+                            "points": [
+                                {"latitude": 40.0, "longitude": -74.0},
+                                {"latitude": 40.1, "longitude": -74.1},
+                            ],
+                        },
+                        {
+                            "summary": {
+                                "lengthInMeters": 600,
+                                "travelTimeInSeconds": 70,
+                            },
+                            "points": [
+                                {"latitude": 40.1, "longitude": -74.1},
+                                {"latitude": 40.2, "longitude": -74.2},
+                            ],
+                        },
+                    ],
+                }
+            ]
+        }
+        out = _parse_tomtom_route(data)
+        self.assertEqual(out["distance_m"], 1000)
+        self.assertEqual(out["duration_s"], 120)
+        self.assertEqual(len(out["segments"]), 2)
+        self.assertEqual(len(out["coordinates"]), 3)
+        self.assertEqual(out["coordinates"][0], [-74.0, 40.0])
+        self.assertEqual(out["coordinates"][-1], [-74.2, 40.2])
+
+    def test_parse_detailed_error_raises_valueerror(self):
+        with self.assertRaises(ValueError) as ctx:
+            _parse_tomtom_route(
+                {"detailedError": {"code": "TEST", "message": "bad request"}}
+            )
+        self.assertIn("bad request", str(ctx.exception))
+
+    def test_http_error_helper_does_not_embed_request_url(self):
+        """Regression: requests.HTTPError includes the full URL (TomTom key is in query)."""
+        bad = Mock()
+        bad.ok = False
+        bad.status_code = 403
+        bad.text = "{}"
+        bad.url = "https://api.tomtom.com/routing/1/calculateRoute/x/json?key=LEAK_ME"
+        with self.assertRaises(RuntimeError) as ctx:
+            _raise_tomtom_http_error(bad)
+        msg = str(ctx.exception)
+        self.assertIn("403", msg)
+        self.assertNotIn("LEAK_ME", msg)
+        self.assertNotIn("key=", msg)
 
 
 class GeocodeResolveTests(SimpleTestCase):

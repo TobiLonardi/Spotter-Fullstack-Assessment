@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from django.utils.decorators import method_decorator
@@ -12,9 +13,11 @@ from .services.geocode import resolve_location
 from .services.hos import plan_trip_hos, trip_plan_hos_model
 from .services.routing import get_directions, meters_to_miles
 
+logger = logging.getLogger(__name__)
+
 
 class HealthView(APIView):
-    """Simple JSON endpoint to verify the API and CORS."""
+    """Smoke check for deploys and CORS."""
 
     authentication_classes = []
     permission_classes = []
@@ -30,10 +33,7 @@ class HealthView(APIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class TripPlanView(APIView):
-    """
-    Geocode locations, compute route (ORS), simulate HOS, return map + ELD-style days.
-    Planning aid only — not certified for regulatory compliance.
-    """
+    """Wire geocode → route → HOS sim into one payload for the UI (not compliance-grade)."""
 
     authentication_classes = []
     permission_classes = []
@@ -57,6 +57,7 @@ class TripPlanView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
+        # resolve_location returns (lat, lon); routing expects [lon, lat] per point.
         lonlat = [
             [cur[1], cur[0]],
             [pu[1], pu[0]],
@@ -66,12 +67,17 @@ class TripPlanView(APIView):
             route = get_directions(lonlat)
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
+        except RuntimeError as e:
+            # Routing raises RuntimeError with messages that omit secrets (TomTom key is in URL).
+            return Response({"detail": str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        except Exception:
+            logger.exception("Trip routing failed")
             return Response(
-                {"detail": f"Routing failed: {e!s}"},
+                {"detail": "Routing failed. Please try again later."},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
+        # Per-leg distance/duration: two segments = current→pickup and pickup→dropoff.
         segs = route.get("segments") or []
         if len(segs) >= 2:
             d0_m = float(segs[0].get("distance_m", 0))
@@ -115,7 +121,7 @@ class TripPlanView(APIView):
 
         return Response(
             {
-                "disclaimer": "This output is a planning aid only and is not an FMCSA-certified ELD.",
+                "disclaimer": "This output is a planning aid only.",
                 "hos_model": trip_plan_hos_model(),
                 "route": {
                     "type": "LineString",

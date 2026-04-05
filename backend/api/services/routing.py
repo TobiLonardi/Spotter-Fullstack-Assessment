@@ -1,4 +1,4 @@
-"""Directions via OpenRouteService (driving-hgv)."""
+"""Directions via OpenRouteService (driving-hgv, with driving-car fallback)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,42 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-ORS_DEFAULT = "https://api.openrouteservice.org/v2/directions/driving-hgv/geojson"
+ORS_DIRECTIONS_BASE = "https://api.openrouteservice.org/v2/directions"
+
+
+def _ors_directions_url(profile: str) -> str:
+    p = profile.strip() or "driving-hgv"
+    return f"{ORS_DIRECTIONS_BASE}/{p}/geojson"
+
+
+def _resolve_ors_url() -> str:
+    explicit = os.environ.get("ORS_BASE_URL", "").strip()
+    if explicit:
+        return explicit
+    profile = (os.environ.get("ORS_PROFILE") or "driving-hgv").strip() or "driving-hgv"
+    return _ors_directions_url(profile)
+
+
+def _ors_profile_unknown_response(r: requests.Response) -> bool:
+    if r.status_code != 400:
+        return False
+    try:
+        data = r.json()
+        err = data.get("error") or {}
+        if err.get("code") == 2003:
+            return True
+        msg = (err.get("message") or "").lower()
+        return "profile" in msg and "unknown" in msg
+    except Exception:
+        text = (r.text or "").lower()
+        return "profile" in text and "unknown" in text
+
+
+def _fallback_car_url(url: str) -> str | None:
+    normalized = url.replace("\\", "/")
+    if "/driving-hgv/" not in normalized:
+        return None
+    return url.replace("/driving-hgv/", "/driving-car/", 1)
 
 
 def get_directions(
@@ -27,13 +62,19 @@ def get_directions(
         raise ValueError(
             "Missing ORS_API_KEY. Add it to the project root .env file."
         )
-    url = (base_url or os.environ.get("ORS_BASE_URL") or ORS_DEFAULT).strip()
+    url = (base_url or _resolve_ors_url()).strip()
     headers = {
         "Authorization": key,
         "Content-Type": "application/json",
     }
     body = {"coordinates": coordinates_lonlat}
     r = requests.post(url, json=body, headers=headers, timeout=60)
+    if not r.ok:
+        logger.warning("ORS error %s: %s", r.status_code, r.text[:500])
+        car_url = _fallback_car_url(url)
+        if car_url and _ors_profile_unknown_response(r):
+            logger.warning("Retrying ORS with driving-car (driving-hgv rejected).")
+            r = requests.post(car_url, json=body, headers=headers, timeout=60)
     if not r.ok:
         logger.warning("ORS error %s: %s", r.status_code, r.text[:500])
         r.raise_for_status()

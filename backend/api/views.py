@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from django.utils.decorators import method_decorator
@@ -11,6 +12,8 @@ from .serializers import TripPlanRequestSerializer
 from .services.geocode import resolve_location
 from .services.hos import plan_trip_hos, trip_plan_hos_model
 from .services.routing import get_directions, meters_to_miles
+
+logger = logging.getLogger(__name__)
 
 
 class HealthView(APIView):
@@ -64,9 +67,13 @@ class TripPlanView(APIView):
             route = get_directions(lonlat)
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
+        except RuntimeError as e:
+            # Routing raises RuntimeError with messages that omit secrets (TomTom key is in URL).
+            return Response({"detail": str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        except Exception:
+            logger.exception("Trip routing failed")
             return Response(
-                {"detail": f"Routing failed: {e!s}"},
+                {"detail": "Routing failed. Please try again later."},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 

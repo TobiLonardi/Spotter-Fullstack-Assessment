@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
+from unittest.mock import Mock
 
 from django.test import SimpleTestCase
 from zoneinfo import ZoneInfo
 
 from api.services.geocode import resolve_location
-from api.services.routing import _parse_tomtom_route
+from api.services.routing import _parse_tomtom_route, _raise_tomtom_http_error
 from api.services.hos import (
     MIN_10H_OFF_PART,
     MIN_11_DRIVE,
@@ -68,6 +69,20 @@ class TomTomRouteParseTests(SimpleTestCase):
                 {"detailedError": {"code": "TEST", "message": "bad request"}}
             )
         self.assertIn("bad request", str(ctx.exception))
+
+    def test_http_error_helper_does_not_embed_request_url(self):
+        """Regression: requests.HTTPError includes the full URL (TomTom key is in query)."""
+        bad = Mock()
+        bad.ok = False
+        bad.status_code = 403
+        bad.text = "{}"
+        bad.url = "https://api.tomtom.com/routing/1/calculateRoute/x/json?key=LEAK_ME"
+        with self.assertRaises(RuntimeError) as ctx:
+            _raise_tomtom_http_error(bad)
+        msg = str(ctx.exception)
+        self.assertIn("403", msg)
+        self.assertNotIn("LEAK_ME", msg)
+        self.assertNotIn("key=", msg)
 
 
 class GeocodeResolveTests(SimpleTestCase):

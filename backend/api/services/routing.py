@@ -38,7 +38,25 @@ def _tomtom_request(
         "routeType": "fastest",
         "traffic": "false",
     }
-    return requests.get(url, params=params, timeout=60)
+    try:
+        return requests.get(url, params=params, timeout=60)
+    except requests.RequestException as e:
+        # Never re-raise requests exceptions: their messages can include the full URL
+        # (TomTom puts the API key in query params).
+        logger.warning("TomTom network error (%s)", type(e).__name__)
+        raise RuntimeError(
+            "TomTom routing request failed (network error)."
+        ) from None
+
+
+def _raise_tomtom_http_error(response: requests.Response) -> None:
+    """Like raise_for_status but do not embed the request URL (query string has the API key)."""
+    if response.ok:
+        return
+    logger.warning("TomTom error %s: %s", response.status_code, response.text[:500])
+    raise RuntimeError(
+        f"TomTom routing request failed with HTTP {response.status_code}."
+    )
 
 
 def _parse_tomtom_route(data: dict[str, Any]) -> dict[str, Any]:
@@ -119,8 +137,7 @@ def get_directions(
     logger.warning("Retrying TomTom with travelMode=car.")
     r2 = _tomtom_request(coordinates_lonlat, key, "car", False)
     if not r2.ok:
-        logger.warning("TomTom error %s: %s", r2.status_code, r2.text[:500])
-        r2.raise_for_status()
+        _raise_tomtom_http_error(r2)
     return _parse_tomtom_route(r2.json())
 
 

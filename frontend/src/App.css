@@ -63,6 +63,19 @@
   box-sizing: border-box;
 }
 
+.trip-form .field-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  opacity: 0.78;
+  color: var(--text-h);
+}
+
+.trip-form .field-hint-example {
+  font-style: italic;
+  opacity: 0.9;
+}
+
 .trip-form button {
   margin-top: 0.5rem;
   padding: 0.6rem 1.25rem;

@@ -161,27 +161,40 @@ export default function App() {
         <label>
           Current location
           <input
+            id="current-location"
             value={currentLocation}
             onChange={(e) => setCurrentLocation(e.target.value)}
-            placeholder="Address or city, state"
+            placeholder="e.g. Dallas, TX, USA"
+            aria-describedby="current-loc-hint"
             required
           />
+          <p id="current-loc-hint" className="field-hint">
+            City and state, full street address, or coordinates. Include country
+            when the name is ambiguous.
+          </p>
         </label>
         <label>
           Pickup location
           <input
+            id="pickup-location"
             value={pickupLocation}
             onChange={(e) => setPickupLocation(e.target.value)}
-            placeholder="Address or city, state"
+            placeholder="e.g. Houston, TX, USA"
+            aria-describedby="pickup-loc-hint"
             required
           />
+          <p id="pickup-loc-hint" className="field-hint">
+            Same formats as current location. Example:{' '}
+            <span className="field-hint-example">3500 Montrose Blvd, Houston, TX, USA</span>
+          </p>
         </label>
         <label>
           Dropoff location
           <input
+            id="dropoff-location"
             value={dropoffLocation}
             onChange={(e) => setDropoffLocation(e.target.value)}
-            placeholder="Address or city, state"
+            placeholder="e.g. San Antonio, TX, USA"
             required
           />
         </label>
@@ -200,10 +213,15 @@ export default function App() {
         <label>
           Timezone (for daily logs)
           <input
+            id="trip-timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
-            placeholder="America/Chicago"
+            placeholder="e.g. America/Chicago"
+            aria-describedby="timezone-hint"
           />
+          <p id="timezone-hint" className="field-hint">
+            IANA timezone name (how days are grouped on the ELD-style grid).
+          </p>
         </label>
         <button type="submit" disabled={loading}>
           {loading ? 'Planning…' : 'Plan trip'}
@@ -218,8 +236,6 @@ export default function App() {
 
       {plan && (
         <>
-          {plan.disclaimer && <p className="disclaimer card">{plan.disclaimer}</p>}
-
           <HosModelDetails hosModel={plan.hos_model} />
 
           <section className="card route-summary">

@@ -93,7 +93,7 @@
 }
 
 .err {
-  color: #dc2626;
+  color: #f87171;
   max-width: 56rem;
 }
 
@@ -308,12 +308,6 @@
 
 .eld-row-OFF .eld-bar {
   background: #4b5563;
-}
-
-@media (prefers-color-scheme: dark) {
-  .err {
-    color: #f87171;
-  }
 }
 
 @media print {
